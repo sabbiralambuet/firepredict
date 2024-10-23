@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Fire Accident Prediction</title>
+    <script>
+        // Function to load and print feature importances
+        async function loadModel() {
+            const response = await fetch('model_params.json');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return await response.json();
+        }
+
+        // Recursive function to traverse a single decision tree
+        function traverseTree(tree, features) {
+            // Check if it's a leaf node
+            if (tree.value) {
+                // Return the predicted class based on majority in leaf
+                return tree.value[0][0] > tree.value[0][1] ? 0 : 1;
+            }
+
+            // Traverse the left or right subtree based on the feature value and threshold
+            if (features[tree.feature] <= tree.threshold) {
+                return traverseTree(tree.left, features);
+            } else {
+                return traverseTree(tree.right, features);
+            }
+        }
+
+        // Function to make a prediction using all trees in the Random Forest
+        function predictUsingForest(forest, features) {
+            let votes = [0, 0];
+            // Loop through each tree in the forest and collect votes
+            forest.trees.forEach(tree => {
+                const prediction = traverseTree(tree, features);
+                votes[prediction]++;
+            });
+
+            // Return the majority vote as the final prediction
+            return votes[0] > votes[1] ? 0 : 1;
+        }
+
+        // Function to handle form submission and display the result
+        async function onSubmitForm() {
+            // Collect feature inputs from the form
+            const temperature = parseFloat(document.getElementById('temperature').value);
+            const humidity = parseFloat(document.getElementById('humidity').value);
+            const precip = parseFloat(document.getElementById('precip').value);
+            const wind = parseFloat(document.getElementById('wind').value);
+
+            // Prepare features in a dictionary
+            const features = {
+                temperature: temperature,
+                humidity: humidity,
+                precip: precip,
+                wind: wind
+            };
+
+            try {
+                // Load the model parameters from JSON
+                const modelParams = await loadModel();
+
+                // Make a prediction using the Random Forest model
+                const prediction = predictUsingForest(modelParams, features);
+
+                // Display the prediction result
+                document.getElementById('result').innerHTML = `
+                    Prediction: ${prediction === 1 ? 'Fire Accident' : 'No Fire Accident'}
+                `;
+            } catch (error) {
+                console.error("Error:", error);
+                document.getElementById('result').innerText = 
+                    `Error fetching model_params.json: ${error.message}`;
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>Fire Accident Prediction</h1>
+    <form onsubmit="onSubmitForm(); return false;">
+        <label for="temperature">Temperature:</label>
+        <input type="number" id="temperature" step="0.1" required><br><br>
+        
+        <label for="humidity">Humidity:</label>
+        <input type="number" id="humidity" step="0.1" required><br><br>
+        
+        <label for="precip">Precipitation:</label>
+        <input type="number" id="precip" step="0.1" required><br><br>
+        
+        <label for="wind">Wind Speed:</label>
+        <input type="number" id="wind" step="0.1" required><br><br>
+        
+        <input type="submit" value="Predict">
+    </form>
+    <div id="result">Prediction result will appear here.</div>
+</body>
+</html>
